@@ -1,0 +1,143 @@
+//libraries used to allow to device to be functional.
+#include "DHT.h"
+#include <SoftwareSerial.h>
+#include<SPI.h>
+#include"ThingSpeak.h"
+#include<WiFiNINA.h>
+#include <Wire.h>
+#include "rgb_lcd.h"
+
+rgb_lcd lcd;
+
+
+//defining the HC05 connections, to the RX and TX pin on arduino
+SoftwareSerial BTserial(10, 11);
+
+
+//defining the sensor DHT11
+#define DHTPIN 2    
+#define DHTTYPE DHT11   
+DHT dht(DHTPIN, DHTTYPE);
+int sensorPin = A0;
+int sensorValue = 0;
+
+//this section conncect the arduino to the interent
+//also states the thingspeal channel id and write api key
+//to be used later on in the program to post the sensor data
+const char ssid[] = "****************";
+const char password[] = "****************";
+const unsigned long channel_id = 1919869;
+const char write_api_key[] = "LQY7R4K74BDN4FKB";
+WiFiClient client;
+
+
+void setup() {
+//testing the connection to the sensor
+//preparing the arduino to begin
+  Serial.begin(9600);
+  Serial.println(F("DHTxx test!"));
+
+  dht.begin();
+
+//preparing the HCO5 to begin
+  BTserial.begin(9600);
+
+//attempeting to connect to the internet using the information
+//stored in the previous section
+Serial.begin(9600);
+Serial.print("Connecting to ");
+Serial.print(ssid);
+WiFi.begin(ssid, password);
+Serial.println();
+Serial.println("Connected!");
+ThingSpeak.begin(client);
+
+  
+
+}
+
+void loop() {
+  
+  delay(2000);
+
+ //setting the humidity, temperature and heatr index as a float 
+//to be referred back to later on in the program.
+  float h = dht.readHumidity();
+  
+  float t = dht.readTemperature();
+  
+  float f = dht.readTemperature(true);
+
+//if the humidity, temperature or heat index can not be read from 
+//the sensor the following error will be printed.
+  
+  if (isnan(h) || isnan(t) || isnan(f)) {
+    Serial.println(F("Failed to read from DHT sensor!"));
+    return;
+  }
+
+ //setting the heat in fahrenheit 
+  float hif = dht.computeHeatIndex(f, h);
+   //setting heat in celsius
+  float hic = dht.computeHeatIndex(t, h, false);
+
+//printling the humidity, temperature and heat index to the monitor
+//to test data is being read from the sensor correctly
+  Serial.print(F("Humidity: "));
+  Serial.print(h);
+
+  Serial.print(F("%  Temperature: "));
+  Serial.print(t);
+
+  Serial.print(F(" Heat index: "));
+  Serial.print(hic);
+  Serial.print("    ");
+
+  //code that could be used if user would like the readings in 
+  //fahrenheit or celsius
+  //Serial.print(F("°C "));
+  //Serial.print(hif);
+  //Serial.println(F("°F"));
+  //Serial.print(F("°C "));
+  //Serial.print(f);
+sensorValue = analogRead(sensorPin);
+
+//this section uses the bluetooth HC05 module and pushes the humidity
+//temperature and heat index to the app on the mobile phone, this is the
+//use of machine 2 machine technology in this project
+BTserial.print(h);
+BTserial.print(",");
+BTserial.print(t);
+BTserial.print(",");
+BTserial.print(hic);
+BTserial.print(";");
+delay(20);
+
+
+//this section sends the temperature, humidity
+//and heat index and posts it into the corresponding
+//channel using the api key and the channels id on thingspeak
+ThingSpeak.setField(1, String(t, 2));
+ThingSpeak.setField(2, String(h, 2));
+ThingSpeak.setField(3, String(hic, 2));
+ThingSpeak.writeFields(channel_id, write_api_key);
+
+    
+//this final section prints the temperature, humidity
+//and heat index to the lcd display connected to the ardiuno
+
+lcd.begin(16, 2);         
+ 
+  lcd.print(F("T:"));
+  lcd.print(t);
+
+
+  lcd.print(F(" H:"));
+  lcd.print(h);
+   
+lcd.setCursor(0, 1);
+  lcd.print(F("HI:"));
+  lcd.print(hic);  
+ 
+
+}
